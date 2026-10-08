@@ -21,9 +21,10 @@ import moo_utils as U
 import operators as ops
 
 
-def estimate_hype_fitness(F_pool, ref_point, ideal_point=None, n_samples=1000, rng=None):
+def estimate_hype_fitness(F_pool, ref_point, ideal_point=None, n_samples=500, rng=None):
     """
     Monte-Carlo estimate of hypervolume contribution for each individual.
+    Fully vectorized across all samples and candidates.
     """
     if rng is None:
         rng = np.random.default_rng(42)
@@ -31,30 +32,24 @@ def estimate_hype_fitness(F_pool, ref_point, ideal_point=None, n_samples=1000, r
     if ideal_point is None:
         ideal_point = np.min(F_pool, axis=0)
 
-    # Sample uniformly in bounding box [ideal, ref]
-    samples = rng.uniform(ideal_point, ref_point, size=(n_samples, k))
+    box_diff = np.maximum(ref_point - ideal_point, 1e-6)
+    samples = rng.uniform(ideal_point, ideal_point + box_diff, size=(n_samples, k))
 
-    # Check dominance: does solution i dominate sample s?
-    # Minimization: solution i dominates sample s iff F_pool[i] <= sample
-    shares = np.zeros(N)
+    # Vectorized dominance check: dom[i, s] is True if solution i dominates sample s
+    dom = np.all(F_pool[:, None, :] <= samples[None, :, :], axis=2)  # (N, S)
+    d_count = np.sum(dom, axis=0)  # (S,)
+    weights = np.where(d_count > 0, 1.0 / np.maximum(d_count, 1), 0.0)
+    shares = dom @ weights  # (N,)
 
-    # Vectorized dominance checks across all samples
-    for s in samples:
-        # Which solutions dominate sample s
-        dom_mask = np.all(F_pool <= s, axis=1)
-        d_count = np.sum(dom_mask)
-        if d_count > 0:
-            shares[dom_mask] += 1.0 / d_count
-
-    # Multiply by bounding box volume
-    box_vol = np.prod(ref_point - ideal_point)
+    box_vol = np.prod(box_diff)
     fitness = shares * (box_vol / n_samples)
     return fitness
 
 
-def hype_environmental_selection(X_comb, F_comb, CV_comb, target_size, ref_point, n_samples=1000, rng=None):
+def hype_environmental_selection(X_comb, F_comb, CV_comb, target_size, ref_point, n_samples=500, rng=None):
     """
     Iteratively remove individuals with lowest HypE fitness until target_size is reached.
+    Uses vectorized dominance matrix and efficient rank-1 updates.
     """
     if rng is None:
         rng = np.random.default_rng(42)
@@ -62,20 +57,29 @@ def hype_environmental_selection(X_comb, F_comb, CV_comb, target_size, ref_point
     if N_comb <= target_size:
         return X_comb, F_comb, CV_comb
 
-    survivors = list(range(N_comb))
+    survivors = np.arange(N_comb)
     ideal_point = np.min(F_comb, axis=0)
+    box_diff = np.maximum(ref_point - ideal_point, 1e-6)
+    samples = rng.uniform(ideal_point, ideal_point + box_diff, size=(n_samples, F_comb.shape[1]))
+
+    # Precompute dominance matrix: dom[i, s] == True if solution i dominates sample s
+    dom = np.all(F_comb[:, None, :] <= samples[None, :, :], axis=2)  # (N_comb, S)
+    d_count = np.sum(dom, axis=0).astype(int)
+
+    # Constraint penalties
+    cv_penalties = 1e6 * CV_comb.copy()
 
     while len(survivors) > target_size:
-        F_sub = F_comb[survivors]
-        fitness = estimate_hype_fitness(F_sub, ref_point, ideal_point=ideal_point, n_samples=n_samples, rng=rng)
-        # Heavy penalty for constraint violation
-        cv_sub = CV_comb[survivors]
-        fitness = fitness - 1e6 * cv_sub
+        weights = np.where(d_count > 0, 1.0 / np.maximum(d_count, 1), 0.0)
+        fitness = dom @ weights - cv_penalties
 
-        worst_local_idx = int(np.argmin(fitness))
-        del survivors[worst_local_idx]
+        worst = int(np.argmin(fitness))
+        # Update d_count for removed individual
+        d_count -= dom[worst].astype(int)
+        dom = np.delete(dom, worst, axis=0)
+        cv_penalties = np.delete(cv_penalties, worst)
+        survivors = np.delete(survivors, worst)
 
-    survivors = np.array(survivors, dtype=int)
     return X_comb[survivors], F_comb[survivors], CV_comb[survivors]
 
 

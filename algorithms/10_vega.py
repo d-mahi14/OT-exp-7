@@ -114,19 +114,9 @@ def run(problem, pop_size=100, n_gen=50, pc=0.9, pm=None, seed=42):
     X = initialize(problem, pop_size=pop_size, rng=rng)
     F, CV = evaluate(problem, X)
 
-    # VEGA is historically non-elitist, but we track all non-dominated solutions found
-    # to return the best approximation front at the end
-    archive_X, archive_F = X.copy(), F.copy()
-
     for gen in range(n_gen):
         X, F, CV = step(problem, X, F, CV, pc=pc, pm=pm, rng=rng)
-        # Update external tracking
-        archive_X = np.vstack([archive_X, X])
-        archive_F = np.vstack([archive_F, F])
-        nd_idx = U.pareto_front(archive_F)
-        archive_X = archive_X[nd_idx]
-        archive_F = archive_F[nd_idx]
 
-    # Final non-dominated set
-    nd_final = U.pareto_front(archive_F)
-    return archive_X[nd_final], archive_F[nd_final]
+    # Final non-dominated set from evolved population
+    nd_final = U.pareto_front(F, CV)
+    return X[nd_final], F[nd_final]

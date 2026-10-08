@@ -165,22 +165,11 @@ def run(problem, n_subproblems=20, T=5, n_gen=30, alpha=1.0, beta=2.0, rho=0.3, 
         problem, n_subproblems=n_subproblems, T=T, rng=rng
     )
 
-    archive_X = X.copy()
-    archive_F = F.copy()
-    archive_CV = CV.copy()
-
     for gen in range(n_gen):
         tau, X, F, CV, z_ideal = step(
             problem, weights, neighborhoods, tau, X, F, CV, z_ideal,
             alpha=alpha, beta=beta, rho=rho, Q=Q, rng=rng
         )
-        archive_X = np.vstack([archive_X, X])
-        archive_F = np.vstack([archive_F, F])
-        archive_CV = np.concatenate([archive_CV, CV])
-        nd_idx = U.pareto_front(archive_F, archive_CV)
-        archive_X = archive_X[nd_idx]
-        archive_F = archive_F[nd_idx]
-        archive_CV = archive_CV[nd_idx]
 
-    nd_final = U.pareto_front(archive_F, archive_CV)
-    return archive_X[nd_final], archive_F[nd_final]
+    nd_final = U.pareto_front(F, CV)
+    return X[nd_final], F[nd_final]

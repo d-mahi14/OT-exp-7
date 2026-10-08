@@ -118,15 +118,8 @@ def run(problem, pop_size=100, n_gen=50, sigma_share=0.5, pc=0.9, pm=None, seed=
     X = initialize(problem, pop_size=pop_size, rng=rng)
     F, CV = evaluate(problem, X)
 
-    archive_X, archive_F = X.copy(), F.copy()
-
     for gen in range(n_gen):
         X, F, CV = step(problem, X, F, CV, sigma_share=sigma_share, pc=pc, pm=pm, rng=rng)
-        archive_X = np.vstack([archive_X, X])
-        archive_F = np.vstack([archive_F, F])
-        nd_idx = U.pareto_front(archive_F)
-        archive_X = archive_X[nd_idx]
-        archive_F = archive_F[nd_idx]
 
-    nd_final = U.pareto_front(archive_F)
-    return archive_X[nd_final], archive_F[nd_final]
+    nd_final = U.pareto_front(F, CV)
+    return X[nd_final], F[nd_final]

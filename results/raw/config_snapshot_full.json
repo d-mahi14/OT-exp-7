@@ -1,0 +1,35 @@
+{
+  "tag": "full",
+  "timestamp": "2026-10-09T01:29:37",
+  "python": "3.12.10",
+  "numpy": "2.5.1",
+  "git_commit": "bce231b9021c6b5760caacceb5c5dba935e9b435",
+  "seeds": [
+    101,
+    102,
+    103,
+    104,
+    105,
+    106,
+    107,
+    108,
+    109,
+    110
+  ],
+  "budget": 10000,
+  "default_pop": 100,
+  "pop_by_problem": {
+    "P10_M3": 91,
+    "P10_M5": 210
+  },
+  "hv_samples": 200000,
+  "n_true": 500,
+  "sweep_n": 11,
+  "sweep_candidates": 1000,
+  "extra": {
+    "tasks": "all",
+    "n_seeds": 10,
+    "budget": 10000,
+    "alg": null
+  }
+}
